@@ -78,6 +78,12 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) migrate() error {
+	// Verify FTS5 is available (requires build tag: -tags "fts5")
+	var fts5ok int
+	if err := s.db.QueryRow(`SELECT 1 FROM pragma_compile_options WHERE compile_options = 'ENABLE_FTS5'`).Scan(&fts5ok); err != nil {
+		return fmt.Errorf("SQLite FTS5 not enabled. Build with: make build (or: go build -tags \"fts5\")")
+	}
+
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS collections (
 			id INTEGER PRIMARY KEY,
@@ -288,18 +294,18 @@ func (s *Store) UpsertFTS(docID int64, title, content string) error {
 	return err
 }
 
-// AppendFTS appends content to an existing FTS entry, preserving earlier text.
+// AppendFTS appends content to an existing FTS entry, preserving earlier text and title.
 func (s *Store) AppendFTS(docID int64, newContent string) error {
-	var existing string
-	err := s.db.QueryRow(`SELECT content FROM documents_fts WHERE rowid = ?`, docID).Scan(&existing)
+	var existingTitle, existingContent string
+	err := s.db.QueryRow(`SELECT title, content FROM documents_fts WHERE rowid = ?`, docID).Scan(&existingTitle, &existingContent)
 	if err != nil {
 		// No existing entry — just insert
 		_, err = s.db.Exec(`INSERT INTO documents_fts (rowid, title, content) VALUES (?, '', ?)`, docID, newContent)
 		return err
 	}
-	combined := existing + "\n" + newContent
+	combined := existingContent + "\n" + newContent
 	s.db.Exec(`DELETE FROM documents_fts WHERE rowid = ?`, docID)
-	_, err = s.db.Exec(`INSERT INTO documents_fts (rowid, title, content) VALUES (?, '', ?)`, docID, combined)
+	_, err = s.db.Exec(`INSERT INTO documents_fts (rowid, title, content) VALUES (?, ?, ?)`, docID, existingTitle, combined)
 	return err
 }
 

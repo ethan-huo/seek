@@ -51,7 +51,7 @@ var providers = []provider{
 func (c *AuthLoginCmd) Run(cfg *config.AppConfig) error {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println("Select embedding provider:\n")
+	fmt.Println("\nSelect embedding provider:")
 	for i, p := range providers {
 		fmt.Printf("  %d) %s\n", i+1, p.Name)
 	}
