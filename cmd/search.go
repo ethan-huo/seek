@@ -60,7 +60,7 @@ func (c *SearchCmd) Run(cfg *config.AppConfig) error {
 		fmt.Printf("\n%s %s\n", fmt.Sprintf("[%d]", i+1), r.Title)
 		fmt.Printf("    %s  (%s)  score=%.4f\n", formatRelPath(r.Path), r.Collection, r.Score)
 		if r.ChunkType == 1 && r.ImagePath != "" {
-			fmt.Printf("    📷 %s\n", formatRelPath(r.ImagePath))
+			fmt.Printf("    %s\n", formatRelPath(r.ImagePath))
 			if r.Content != "" {
 				snippet := formatSnippet(r.Content, 150)
 				fmt.Printf("    context: %s\n", snippet)

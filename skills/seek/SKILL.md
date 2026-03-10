@@ -47,14 +47,14 @@ seek search "conceptual question" --vec -l 10
 # Image result
 [2] Conversation Title
     ~/.claude/projects/.../xxx.jsonl  (claude-conversations)  score=0.6037
-    📷 ~/.cache/seek/images/claude-0222d48a-0.png
+    ~/.cache/seek/images/claude-0222d48a-0.png
     context: the dialog layout is broken, content overflows...
 ```
 
 - `collection-name` tells you which collection the result came from (run `seek status` to see all)
 - For conversation results, the title is the first user message
 - The path is the actual file — use `Read` tool to get full content if needed
-- 📷 indicates an image result — use `Read` tool on the image path to view it
+- Image results show the file path (`.png`/`.jpg`) — use `Read` tool to view it
 
 ## Maintenance Commands
 
