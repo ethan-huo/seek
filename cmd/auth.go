@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -24,7 +23,6 @@ type provider struct {
 	Name    string
 	BaseURL string
 	Model   string
-	EnvVar  string
 }
 
 var providers = []provider{
@@ -32,37 +30,29 @@ var providers = []provider{
 		Name:    "dashscope (阿里百炼)",
 		BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 		Model:   "text-embedding-v4",
-		EnvVar:  "DASHSCOPE_API_KEY",
 	},
 	{
 		Name:    "openai",
 		BaseURL: "https://api.openai.com/v1",
 		Model:   "text-embedding-3-small",
-		EnvVar:  "OPENAI_API_KEY",
 	},
 	{
 		Name:    "custom (OpenAI-compatible)",
 		BaseURL: "",
 		Model:   "",
-		EnvVar:  "",
 	},
 }
 
 func (c *AuthLoginCmd) Run(cfg *config.AppConfig) error {
-	reader := bufio.NewReader(os.Stdin)
-
 	fmt.Println("\nSelect embedding provider:")
 	for i, p := range providers {
 		fmt.Printf("  %d) %s\n", i+1, p.Name)
 	}
 	fmt.Print("\nChoice [1]: ")
 
-	choiceStr, _ := reader.ReadString('\n')
-	choiceStr = strings.TrimSpace(choiceStr)
+	choiceStr := readLine()
 	choice := 0
-	if choiceStr == "" {
-		choice = 0
-	} else {
+	if choiceStr != "" {
 		fmt.Sscanf(choiceStr, "%d", &choice)
 		choice--
 	}
@@ -74,18 +64,15 @@ func (c *AuthLoginCmd) Run(cfg *config.AppConfig) error {
 	baseURL := p.BaseURL
 	model := p.Model
 
-	// Custom provider needs URL + model
 	if p.BaseURL == "" {
 		fmt.Print("Base URL: ")
-		baseURL, _ = reader.ReadString('\n')
-		baseURL = strings.TrimSpace(baseURL)
+		baseURL = readLine()
 
 		fmt.Print("Model name: ")
-		model, _ = reader.ReadString('\n')
-		model = strings.TrimSpace(model)
+		model = readLine()
 	}
 
-	fmt.Printf("\nAPI Key (input hidden): ")
+	fmt.Print("\nAPI Key (input hidden): ")
 	keyBytes, err := term.ReadPassword(int(syscall.Stdin))
 	fmt.Println()
 	if err != nil {
@@ -96,7 +83,6 @@ func (c *AuthLoginCmd) Run(cfg *config.AppConfig) error {
 		return fmt.Errorf("API key cannot be empty")
 	}
 
-	// Save to config
 	newCfg := config.Config{
 		Embedding: config.EmbeddingConfig{
 			BaseURL: baseURL,
@@ -129,4 +115,50 @@ func (c *AuthStatusCmd) Run(cfg *config.AppConfig) error {
 	fmt.Printf("Model:     %s\n", cfg.Config.Embedding.Model)
 	fmt.Printf("API Key:   %s\n", masked)
 	return nil
+}
+
+// readLine reads a line in raw mode, handling ESC, backspace, and Ctrl-C cleanly.
+func readLine() string {
+	fd := int(syscall.Stdin)
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		// Fallback: just read without raw mode
+		var buf [256]byte
+		n, _ := os.Stdin.Read(buf[:])
+		return strings.TrimSpace(string(buf[:n]))
+	}
+	defer term.Restore(fd, oldState)
+
+	var line []byte
+	buf := make([]byte, 16) // big enough for any escape sequence
+	for {
+		n, err := os.Stdin.Read(buf)
+		if err != nil || n == 0 {
+			break
+		}
+		// If we read multiple bytes at once, it's likely an escape sequence — skip it
+		if n > 1 {
+			continue
+		}
+		ch := buf[0]
+		switch {
+		case ch == '\r' || ch == '\n':
+			os.Stdout.Write([]byte("\r\n"))
+			return string(line)
+		case ch == 3: // Ctrl-C
+			os.Stdout.Write([]byte("^C\r\n"))
+			os.Exit(130)
+		case ch == 27: // Bare ESC — ignore
+			continue
+		case ch == 127 || ch == 8: // Backspace / DEL
+			if len(line) > 0 {
+				line = line[:len(line)-1]
+				os.Stdout.Write([]byte("\b \b"))
+			}
+		case ch >= 32 && ch < 127: // Printable ASCII
+			line = append(line, ch)
+			os.Stdout.Write([]byte{ch})
+		}
+	}
+	return string(line)
 }
