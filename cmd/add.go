@@ -232,7 +232,7 @@ func syncMarkdownCollection(cfg *config.AppConfig, db *store.Store, col *store.C
 }
 
 func syncClaudeCollection(cfg *config.AppConfig, db *store.Store, col *store.Collection) error {
-	convos, err := source.ScanClaude()
+	files, err := source.ScanClaudeFiles()
 	if err != nil {
 		return err
 	}
@@ -240,33 +240,26 @@ func syncClaudeCollection(cfg *config.AppConfig, db *store.Store, col *store.Col
 	var indexed, skipped int
 	var totalImages int
 
-	for _, conv := range convos {
-		lineCount, _ := source.CountLines(conv.Path)
+	for _, f := range files {
+		lineCount, _ := source.CountLines(f.Path)
 
-		existing, err := db.GetDocument(col.ID, conv.Path)
+		existing, err := db.GetDocument(col.ID, f.Path)
 		if err == nil && existing.LineCount >= lineCount {
 			skipped++
 			continue
 		}
 
-		// Get new messages from offset
+		// Only parse files that actually changed
 		fromLine := 0
 		if existing != nil {
 			fromLine = existing.LineCount
 		}
 
-		convID := strings.TrimSuffix(filepath.Base(conv.Path), filepath.Ext(conv.Path))
+		convID := strings.TrimSuffix(filepath.Base(f.Path), filepath.Ext(f.Path))
 
-		var messages []source.ClaudeMessage
-		var images []source.ConversationImage
-		if fromLine > 0 {
-			messages, images, err = source.ParseClaudeFileWithImages(conv.Path, fromLine, convID)
-			if err != nil {
-				continue
-			}
-		} else {
-			messages = conv.Messages
-			images = conv.Images
+		messages, images, err := source.ParseClaudeFileWithImages(f.Path, fromLine, convID)
+		if err != nil {
+			continue
 		}
 
 		if len(messages) == 0 && len(images) == 0 {
@@ -274,36 +267,38 @@ func syncClaudeCollection(cfg *config.AppConfig, db *store.Store, col *store.Col
 			continue
 		}
 
-		title := conv.Title
-		if title == "" {
-			title = filepath.Base(conv.Path)
+		title := filepath.Base(f.Path)
+		if fromLine == 0 {
+			for _, m := range messages {
+				if m.Role == "user" {
+					title = source.Truncate(m.Content, 100)
+					break
+				}
+			}
 		}
 
-		docID, err := db.UpsertDocument(col.ID, conv.Path, title, "", 0, lineCount)
+		docID, err := db.UpsertDocument(col.ID, f.Path, title, "", 0, lineCount)
 		if err != nil {
 			continue
 		}
 
 		text := source.ClaudeConversationToText(messages)
 		if fromLine > 0 {
-			// Incremental: append new text to existing FTS entry
 			if err := db.AppendFTS(docID, text); err != nil {
-				fmt.Printf("  WARN: fts %s: %v\n", conv.Path, err)
+				fmt.Printf("  WARN: fts %s: %v\n", f.Path, err)
 			}
 		} else {
 			if err := db.UpsertFTS(docID, title, text); err != nil {
-				fmt.Printf("  WARN: fts %s: %v\n", conv.Path, err)
+				fmt.Printf("  WARN: fts %s: %v\n", f.Path, err)
 			}
 			db.DeleteChunksForDocument(docID)
 		}
 
-		// Text chunks (always append — incremental adds new chunks)
 		chunks := chunk.ChunkConversation(text, 0)
 		if err := indexChunks(db, docID, chunks); err != nil {
-			fmt.Printf("  WARN: embed %s: %v\n", conv.Path, err)
+			fmt.Printf("  WARN: embed %s: %v\n", f.Path, err)
 		}
 
-		// Image chunks
 		nextSeq := len(chunks)
 		for _, img := range images {
 			if err := db.InsertImageChunk(docID, nextSeq, img.Context, img.SavedPath, nil); err != nil {
@@ -326,38 +321,34 @@ func syncClaudeCollection(cfg *config.AppConfig, db *store.Store, col *store.Col
 }
 
 func syncCodexCollection(cfg *config.AppConfig, db *store.Store, col *store.Collection) error {
-	convos, err := source.ScanCodex()
+	files, err := source.ScanCodexFiles()
 	if err != nil {
 		return err
 	}
 
+	threadNames := source.LoadCodexThreadNames()
+
 	var indexed, skipped int
 	var totalImages int
 
-	for _, conv := range convos {
-		lineCount, _ := source.CountLines(conv.Path)
+	for _, f := range files {
+		lineCount, _ := source.CountLines(f.Path)
 
-		existing, err := db.GetDocument(col.ID, conv.Path)
+		existing, err := db.GetDocument(col.ID, f.Path)
 		if err == nil && existing.LineCount >= lineCount {
 			skipped++
 			continue
 		}
 
+		// Only parse files that actually changed
 		fromLine := 0
 		if existing != nil {
 			fromLine = existing.LineCount
 		}
 
-		var messages []source.CodexMessage
-		var images []source.ConversationImage
-		if fromLine > 0 {
-			messages, _, images, err = source.ParseCodexFileWithImages(conv.Path, fromLine)
-			if err != nil {
-				continue
-			}
-		} else {
-			messages = conv.Messages
-			images = conv.Images
+		messages, sessionID, images, err := source.ParseCodexFileWithImages(f.Path, fromLine)
+		if err != nil {
+			continue
 		}
 
 		if len(messages) == 0 && len(images) == 0 {
@@ -365,12 +356,19 @@ func syncCodexCollection(cfg *config.AppConfig, db *store.Store, col *store.Coll
 			continue
 		}
 
-		title := conv.ThreadName
-		if title == "" {
-			title = filepath.Base(conv.Path)
+		title := filepath.Base(f.Path)
+		if name, ok := threadNames[sessionID]; ok && name != "" {
+			title = name
+		} else if fromLine == 0 {
+			for _, m := range messages {
+				if m.Role == "user" {
+					title = source.Truncate(m.Content, 100)
+					break
+				}
+			}
 		}
 
-		docID, err := db.UpsertDocument(col.ID, conv.Path, title, "", 0, lineCount)
+		docID, err := db.UpsertDocument(col.ID, f.Path, title, "", 0, lineCount)
 		if err != nil {
 			continue
 		}
@@ -378,22 +376,20 @@ func syncCodexCollection(cfg *config.AppConfig, db *store.Store, col *store.Coll
 		text := source.ConversationToText(messages)
 		if fromLine > 0 {
 			if err := db.AppendFTS(docID, text); err != nil {
-				fmt.Printf("  WARN: fts %s: %v\n", conv.Path, err)
+				fmt.Printf("  WARN: fts %s: %v\n", f.Path, err)
 			}
 		} else {
 			if err := db.UpsertFTS(docID, title, text); err != nil {
-				fmt.Printf("  WARN: fts %s: %v\n", conv.Path, err)
+				fmt.Printf("  WARN: fts %s: %v\n", f.Path, err)
 			}
 			db.DeleteChunksForDocument(docID)
 		}
 
-		// Text chunks
 		chunks := chunk.ChunkConversation(text, 0)
 		if err := indexChunks(db, docID, chunks); err != nil {
-			fmt.Printf("  WARN: embed %s: %v\n", conv.Path, err)
+			fmt.Printf("  WARN: embed %s: %v\n", f.Path, err)
 		}
 
-		// Image chunks
 		nextSeq := len(chunks)
 		for _, img := range images {
 			if err := db.InsertImageChunk(docID, nextSeq, img.Context, img.SavedPath, nil); err != nil {

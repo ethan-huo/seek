@@ -24,8 +24,8 @@ type CodexConversation struct {
 	Images     []ConversationImage
 }
 
-// ScanCodex scans ~/.codex/sessions/ and ~/.codex/archived_sessions/ for conversation JSONL files.
-func ScanCodex() ([]CodexConversation, error) {
+// ScanCodexFiles scans ~/.codex/ for conversation JSONL file paths without parsing them.
+func ScanCodexFiles() ([]ConversationFile, error) {
 	home, _ := os.UserHomeDir()
 
 	dirs := []string{
@@ -33,10 +33,7 @@ func ScanCodex() ([]CodexConversation, error) {
 		filepath.Join(home, ".codex", "archived_sessions"),
 	}
 
-	// Load session index for thread names
-	threadNames := loadSessionIndex(home)
-
-	var convos []CodexConversation
+	var files []ConversationFile
 
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -49,16 +46,10 @@ func ScanCodex() ([]CodexConversation, error) {
 			if info.IsDir() || filepath.Ext(path) != ".jsonl" {
 				return nil
 			}
-			// Skip session_index.jsonl
 			if filepath.Base(path) == "session_index.jsonl" {
 				return nil
 			}
-
-			conv, err := parseCodexConversation(path, threadNames)
-			if err != nil || len(conv.Messages) == 0 {
-				return nil
-			}
-			convos = append(convos, *conv)
+			files = append(files, ConversationFile{Path: path})
 			return nil
 		})
 		if err != nil {
@@ -66,7 +57,13 @@ func ScanCodex() ([]CodexConversation, error) {
 		}
 	}
 
-	return convos, nil
+	return files, nil
+}
+
+// LoadCodexThreadNames loads session index for title lookup.
+func LoadCodexThreadNames() map[string]string {
+	home, _ := os.UserHomeDir()
+	return loadSessionIndex(home)
 }
 
 // ParseCodexFile parses a single Codex JSONL file starting from a line offset.
@@ -249,9 +246,9 @@ func ParseCodexFileWithImages(path string, fromLine int) ([]CodexMessage, string
 					// Context: nearest text from this message
 					context := ""
 					if len(textParts) > 0 {
-						context = truncate(strings.Join(textParts, " "), 500)
+						context = Truncate(strings.Join(textParts, " "), 500)
 					} else if len(messages) > 0 {
-						context = truncate(messages[len(messages)-1].Content, 500)
+						context = Truncate(messages[len(messages)-1].Content, 500)
 					}
 
 					images = append(images, ConversationImage{
@@ -313,7 +310,7 @@ func parseCodexConversation(path string, threadNames map[string]string) (*CodexC
 	} else if len(messages) > 0 {
 		for _, m := range messages {
 			if m.Role == "user" {
-				title = truncate(m.Content, 100)
+				title = Truncate(m.Content, 100)
 				break
 			}
 		}

@@ -25,8 +25,13 @@ type ClaudeConversation struct {
 	Images   []ConversationImage
 }
 
-// ScanClaude scans ~/.claude/projects/ for conversation JSONL files.
-func ScanClaude() ([]ClaudeConversation, error) {
+// ConversationFile represents a discovered JSONL file (lightweight, no parsing).
+type ConversationFile struct {
+	Path string
+}
+
+// ScanClaudeFiles scans ~/.claude/projects/ for conversation JSONL file paths without parsing them.
+func ScanClaudeFiles() ([]ConversationFile, error) {
 	home, _ := os.UserHomeDir()
 	projectsDir := filepath.Join(home, ".claude", "projects")
 
@@ -34,7 +39,7 @@ func ScanClaude() ([]ClaudeConversation, error) {
 		return nil, fmt.Errorf("claude projects directory not found: %s", projectsDir)
 	}
 
-	var convos []ClaudeConversation
+	var files []ConversationFile
 
 	err := filepath.Walk(projectsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -43,17 +48,11 @@ func ScanClaude() ([]ClaudeConversation, error) {
 		if info.IsDir() || filepath.Ext(path) != ".jsonl" {
 			return nil
 		}
-
-		conv, err := parseClaudeConversation(path, projectsDir)
-		if err != nil || len(conv.Messages) == 0 {
-			return nil
-		}
-
-		convos = append(convos, *conv)
+		files = append(files, ConversationFile{Path: path})
 		return nil
 	})
 
-	return convos, err
+	return files, err
 }
 
 // ParseClaudeFile parses a single Claude JSONL file starting from a line offset.
@@ -127,7 +126,7 @@ func ParseClaudeFileWithImages(path string, fromLine int, convID string) ([]Clau
 		for i := range lineImages {
 			// Attach context: nearest text before or after
 			if len(allTexts) > 0 {
-				lineImages[i].Context = truncate(allTexts[len(allTexts)-1], 500)
+				lineImages[i].Context = Truncate(allTexts[len(allTexts)-1], 500)
 			}
 			images = append(images, lineImages[i])
 		}
@@ -242,7 +241,7 @@ func parseClaudeConversation(path, projectsDir string) (*ClaudeConversation, err
 		// First user message becomes title
 		for _, m := range messages {
 			if m.Role == "user" {
-				title = truncate(m.Content, 100)
+				title = Truncate(m.Content, 100)
 				break
 			}
 		}
@@ -321,7 +320,7 @@ func extractTextContent(raw json.RawMessage) string {
 	return ""
 }
 
-func truncate(s string, maxLen int) string {
+func Truncate(s string, maxLen int) string {
 	// Take first line or first maxLen chars
 	if idx := strings.IndexByte(s, '\n'); idx >= 0 && idx < maxLen {
 		s = s[:idx]
