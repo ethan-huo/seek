@@ -19,6 +19,7 @@ var cli struct {
 	Search cmd.SearchCmd `cmd:"" help:"Search across collections"`
 	Status cmd.StatusCmd `cmd:"" help:"Show index status"`
 	Service cmd.ServiceCmd `cmd:"" help:"Manage periodic sync+embed service"`
+	Hooks   cmd.HooksCmd   `cmd:"" help:"Install/remove hooks for AI tools"`
 	Auth    cmd.AuthCmd    `cmd:"" help:"Manage API authentication"`
 	Config  cmd.ConfigCmd  `cmd:"" help:"Show or edit config"`
 }
