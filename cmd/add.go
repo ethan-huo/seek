@@ -241,10 +241,18 @@ func syncClaudeCollection(cfg *config.AppConfig, db *store.Store, col *store.Col
 	var totalImages int
 
 	for _, f := range files {
+		// Fast path: skip if file mtime hasn't changed
+		existing, err := db.GetDocument(col.ID, f.Path)
+		if err == nil && existing.Mtime >= f.Mtime {
+			skipped++
+			continue
+		}
+
 		lineCount, _ := source.CountLines(f.Path)
 
-		existing, err := db.GetDocument(col.ID, f.Path)
-		if err == nil && existing.LineCount >= lineCount {
+		// Double-check: line count unchanged means no new content
+		if existing != nil && existing.LineCount >= lineCount {
+			db.UpdateDocumentMtime(existing.ID, f.Mtime)
 			skipped++
 			continue
 		}
@@ -277,7 +285,7 @@ func syncClaudeCollection(cfg *config.AppConfig, db *store.Store, col *store.Col
 			}
 		}
 
-		docID, err := db.UpsertDocument(col.ID, f.Path, title, "", 0, lineCount)
+		docID, err := db.UpsertDocument(col.ID, f.Path, title, "", f.Mtime, lineCount)
 		if err != nil {
 			continue
 		}
@@ -332,15 +340,21 @@ func syncCodexCollection(cfg *config.AppConfig, db *store.Store, col *store.Coll
 	var totalImages int
 
 	for _, f := range files {
-		lineCount, _ := source.CountLines(f.Path)
-
+		// Fast path: skip if file mtime hasn't changed
 		existing, err := db.GetDocument(col.ID, f.Path)
-		if err == nil && existing.LineCount >= lineCount {
+		if err == nil && existing.Mtime >= f.Mtime {
 			skipped++
 			continue
 		}
 
-		// Only parse files that actually changed
+		lineCount, _ := source.CountLines(f.Path)
+
+		if existing != nil && existing.LineCount >= lineCount {
+			db.UpdateDocumentMtime(existing.ID, f.Mtime)
+			skipped++
+			continue
+		}
+
 		fromLine := 0
 		if existing != nil {
 			fromLine = existing.LineCount
@@ -368,7 +382,7 @@ func syncCodexCollection(cfg *config.AppConfig, db *store.Store, col *store.Coll
 			}
 		}
 
-		docID, err := db.UpsertDocument(col.ID, f.Path, title, "", 0, lineCount)
+		docID, err := db.UpsertDocument(col.ID, f.Path, title, "", f.Mtime, lineCount)
 		if err != nil {
 			continue
 		}

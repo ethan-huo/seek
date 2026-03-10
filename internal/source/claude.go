@@ -27,7 +27,8 @@ type ClaudeConversation struct {
 
 // ConversationFile represents a discovered JSONL file (lightweight, no parsing).
 type ConversationFile struct {
-	Path string
+	Path  string
+	Mtime float64
 }
 
 // ScanClaudeFiles scans ~/.claude/projects/ for conversation JSONL file paths without parsing them.
@@ -48,7 +49,10 @@ func ScanClaudeFiles() ([]ConversationFile, error) {
 		if info.IsDir() || filepath.Ext(path) != ".jsonl" {
 			return nil
 		}
-		files = append(files, ConversationFile{Path: path})
+		files = append(files, ConversationFile{
+			Path:  path,
+			Mtime: float64(info.ModTime().Unix()),
+		})
 		return nil
 	})
 

@@ -49,7 +49,10 @@ func ScanCodexFiles() ([]ConversationFile, error) {
 			if filepath.Base(path) == "session_index.jsonl" {
 				return nil
 			}
-			files = append(files, ConversationFile{Path: path})
+			files = append(files, ConversationFile{
+				Path:  path,
+				Mtime: float64(info.ModTime().Unix()),
+			})
 			return nil
 		})
 		if err != nil {
