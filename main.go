@@ -18,8 +18,9 @@ var cli struct {
 	Embed  cmd.EmbedCmd  `cmd:"" help:"Generate embeddings (batch or realtime)"`
 	Search cmd.SearchCmd `cmd:"" help:"Search across collections"`
 	Status cmd.StatusCmd `cmd:"" help:"Show index status"`
-	Auth   cmd.AuthCmd   `cmd:"" help:"Manage API authentication"`
-	Config cmd.ConfigCmd `cmd:"" help:"Show or edit config"`
+	Service cmd.ServiceCmd `cmd:"" help:"Manage periodic sync+embed service"`
+	Auth    cmd.AuthCmd    `cmd:"" help:"Manage API authentication"`
+	Config  cmd.ConfigCmd  `cmd:"" help:"Show or edit config"`
 }
 
 func main() {
