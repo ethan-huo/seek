@@ -46,7 +46,7 @@ seek search "how to deploy the gateway"
 seek search "ECONNREFUSED port 3000" --lex
 
 # Vector semantic search (meaning-based)
-seek search "函数式编程架构" --vec
+seek search "functional programming architecture" --vec
 
 # Incremental sync + embed new content
 seek sync && seek embed
