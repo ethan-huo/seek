@@ -11,7 +11,7 @@ Binary location: `seek`
 
 ## When to Use
 
-- User asks "我之前有没有讨论过 X" / "找一下关于 Y 的笔记"
+- User asks "have I discussed X before" / "find my notes about Y"
 - User references past conversations or notes
 - You need context from previous work sessions
 - User asks you to search their knowledge base
@@ -32,7 +32,7 @@ seek search "conceptual question" --vec -l 10
 ### Search Strategy
 
 1. **Start with `--lex`** for exact terms, names, error messages, file paths
-2. **Use default (hybrid)** for conceptual questions like "how to deploy" or "AI 编程经验"
+2. **Use default (hybrid)** for conceptual questions like "how to deploy" or "best practices for X"
 3. **Use `--vec`** only when hybrid results are poor and you need pure semantic matching
 4. **Increase `-l 20`** if the first 10 results aren't enough
 
@@ -48,7 +48,7 @@ seek search "conceptual question" --vec -l 10
 [2] Conversation Title
     ~/.claude/projects/.../xxx.jsonl  (claude-conversations)  score=0.6037
     📷 ~/.cache/seek/images/claude-0222d48a-0.png
-    context: dialog 不对 内容溢出了...
+    context: the dialog layout is broken, content overflows...
 ```
 
 - `collection-name` tells you which collection the result came from (run `seek status` to see all)
@@ -104,4 +104,4 @@ Run `seek status` to see which collections the user has configured.
 - **Always use absolute path** to the binary: `seek`
 - Hybrid/vec search requires API key (already configured in `~/.config/seek/config.yaml`)
 - If search returns no results, try rephrasing or switching between `--lex` and hybrid
-- Chinese and English queries both work — the index contains mixed-language content
+- Multilingual queries work — the index supports mixed-language content
