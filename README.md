@@ -52,6 +52,26 @@ seek search "函数式编程架构" --vec
 seek sync && seek embed
 ```
 
+## Automation
+
+**Background service** — periodic sync + embed via launchd (macOS):
+
+```bash
+seek service start              # every 1 hour (default)
+seek service start -i 1800      # every 30 minutes
+seek service stop
+seek service status
+```
+
+**AI tool hooks** — auto-sync after every conversation:
+
+```bash
+seek hooks install              # adds Stop hook to Claude Code
+seek hooks uninstall
+```
+
+This writes a `Stop` hook into `~/.claude/settings.json` so `seek sync` runs automatically when Claude finishes a conversation. Combined with the background service (which handles `embed`), your index stays current without manual intervention.
+
 ## How It Works
 
 **Indexing** — `seek sync` scans collections incrementally. Markdown files are tracked by content hash. Claude/Codex JSONL files are append-only, tracked by line count. Base64 images in conversations are extracted to `~/.cache/seek/images/`.
